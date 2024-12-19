@@ -7,8 +7,8 @@
 %% Establishing Variables/Growth Rates
 r1 = 0.2; %Cell population 1 intrinsic growth rate
 r2 = 0.2; %Cell population 2 intrinsic growth rate
-w12 = 0.5; %Phenotypic switching rate from population 1 to 2 - potentially make switching rates higher (simulate parameter space)
-w21 = 0.7; %Phenotypic switching rate from population 2 to 1
+w12 = 0.1; %Phenotypic switching rate from population 1 to 2 - potentially make switching rates higher (simulate parameter space)
+w21 = 0.1; %Phenotypic switching rate from population 2 to 1
 N1_0 = 100; %Initial population for population 1
 N2_0 = 100; %Initial population for population 1
 
@@ -16,7 +16,11 @@ N2_0 = 100; %Initial population for population 1
 a = 0; 
 b = 600;
 r_treat = -0.5; %Updated growth rate for sensitive population under treatment
-n = 600; %number of time steps
+m = 4; %treatment dosage in each step
+d = 0.2; %treatment induced death rate
+%r_treat = r1 - m * d;
+
+n = 1800; %number of time steps
 
 % specific to metronomic model:
 treat_time = 10; % time-step duration of treatment
@@ -27,8 +31,12 @@ PSA_0 = N1_0 + N2_0; %Initial PSA count
 PSA_threshold = 0.5 * PSA_0; %Threshold for treatment stop/start
 
 % graphing
-y_max = 100;
+y_max = 1000000;
 log_y_max = log10(y_max);
+
+% Establishing Point for Progression
+prog_pnt = 1000000;
+
 %% Establishing ODEs for Cell population changes
 
 % y = N1
@@ -107,6 +115,9 @@ elseif strcmp(treatment_method, 'metronomic')
     plot(t,y,'r', 'DisplayName', 'Sensitive Population')
     plot(t,v,'b', 'DisplayName', 'Resistant Population')
 
+    % semilogy(t,y,'r', 'DisplayName', 'Sensitive Population')
+    % semilogy(t,v,'b', 'DisplayName', 'Resistant Population')
+
     x_limits = xlim;
     y_limits = ylim;
 
@@ -140,8 +151,9 @@ elseif strcmp(treatment_method, 'adaptive') %I still need to account for PSA Dec
     f1 = @(t,y,v) treat_rate_adp(t,y,v)*y - w12*y + w21*v;
     f2 = @(t,y,v) r2*v - w21*v + w12*y;
     %f2 = @(t,y,v) treat_rate(t)*v - w21*v + w12*y; %I was just experimenting here!!! change treat_rate(t) back to r2
+    %[t,y,v,stop_time] = RK4(f1,f2,a,b,n,N1_0,N2_0,prog_pnt);
     [t,y,v] = RK4(f1,f2,a,b,n,N1_0,N2_0);
-
+    total_count = y + v;
     treatment_status = false(size(t)); % Boolean array for treatment state
 
     for i = 1:length(t)
@@ -154,6 +166,12 @@ elseif strcmp(treatment_method, 'adaptive') %I still need to account for PSA Dec
     hold on
     plot(t,y,'r', 'DisplayName', 'Sensitive Population')
     plot(t,v,'b', 'DisplayName', 'Resistant Population')
+    plot(t,total_count, 'g', 'DisplayName', 'Total')
+
+    % semilogy(t,y,'r', 'DisplayName', 'Sensitive Population')
+    % semilogy(t,v,'b', 'DisplayName', 'Resistant Population')
+    % semilogy(t,total_count, 'g', 'DisplayName', 'Total')
+
 
     %set(gca, 'YScale', 'log')
 
@@ -163,17 +181,40 @@ elseif strcmp(treatment_method, 'adaptive') %I still need to account for PSA Dec
     treatment_regions = [0; treatment_status(:); 0];
     edges = diff(treatment_regions);
     start_idx = find(edges == 1);
-    end_idx = find(edges == -1) -1;
+    end_idx = find(edges == -1); %-1;
 
     for i = 1:length(start_idx)
         x_start = t(start_idx(i));
-        x_end = t(end_idx(i));        
+        % x_end = t(end_idx(i));
+
+        % Determining x_end to avoid indexing errors:
+        if end_idx(i) > length(t)
+            x_end = t(end); % Assign the last value of t if index is out of bounds
+        else
+            x_end = t(end_idx(i)); % Assign the valid index value
+        end
 
         fill([x_start, x_end, x_end, x_start], [0, 0, y_max, y_max], [0.8, 0.8, 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.5, 'HandleVisibility', 'off');
     end
 
     treatment_box = fill([0, 1, 1, 0], [-1, -2, -2, -1], [0.8, 0.8, 0.8], 'EdgeColor', 'none', 'HandleVisibility', 'on');
     set(treatment_box, 'DisplayName', 'Treatment Applied');
+
+
+
+    % if ~isnan(stop_time)
+    %     % Progression occurred
+    %     plot(stop_time, prog_pnt, 'ro', 'MarkerSize', 8, 'DisplayName', 'Progression Threshold');
+    %     legend('Total Tumor Population', 'Progression Threshold', 'Location', 'Best');
+    %     title(sprintf('Tumor Progression: Stopped at t = %.1f days', stop_time));
+    % else
+    %     % No progression
+    %     legend('Total Tumor Population', 'Location', 'Best');
+    %     title('Tumor Progression: No progression within 600 days');
+    % end
+
+
+
 
     xlabel('Time, (days)')
     ylabel('Cell Count')
@@ -192,15 +233,11 @@ end
 % Establishing range for w12 and w21 rates:
 
 w_start = 0;
-w_end = 5;
-w_int = 500;
+w_end = 3;
+w_int = 700;
 
 w12_vals = linspace(w_start, w_end, w_int);
 w21_vals = linspace(w_start, w_end, w_int);
-
-
-% Establishing Point for Progression
-prog_pnt = 1000000;
 
 
 % Initialising matrix for w12 and w21 combinations:
@@ -226,9 +263,10 @@ for i = 1:length(w12_vals)
         current_pop = y+v;
 
         %Finding time taken to reach the progression point:
-        time_to_prog = find(current_pop > prog_pnt, 1); %finds the first occurence of the population exceeding the progression point
+        %time_to_prog = find(current_pop > prog_pnt, 1); %finds the first occurence of the population exceeding the progression point
+        time_to_prog = find(movmean(current_pop,3)>prog_pnt, 1);
         if isempty(time_to_prog)
-            param_space(i,j) = 1e4; %assigning a large time index if the population did not exceed the progression point within the time domain
+            param_space(i,j) = 700; %assigning a large time index if the population did not exceed the progression point within the time domain
         else
             param_space(i,j) = t(time_to_prog); %assigning the time value using the index found.
         end
@@ -237,13 +275,77 @@ for i = 1:length(w12_vals)
 end
 
 %Creating colour map
+param_space_fixed = param_space';
+
 figure;
-imagesc(w12_vals, w21_vals, param_space);
+imagesc(w12_vals, w21_vals, param_space_fixed);
 colorbar;
 xlabel('w_{12} values');
 ylabel('w_{21} values');
 title('Time to progression (days)')
 set(gca, 'YDir', 'normal'); 
+
+
+
+
+%% Extinction Condition:
+
+% w_21 - w_12 > r_2 - r_1
+
+w_start = 0;
+w_end = 3;
+w_int = 700;
+
+w12_vals = linspace(w_start, w_end, w_int);
+w21_vals = linspace(w_start, w_end, w_int);
+
+r_diff = r2 - r1;
+
+%initialise extinction matrix
+ext_mat = zeros(length(w12_vals), length(w21_vals));
+
+for i = 1:length(w12_vals)
+    for j = 1:length(w21_vals)
+        %Assign w12 and w21
+        w12 = w12_vals(i);
+        w21 = w21_vals(j);
+        
+        omega_diff = w21 - w12;
+
+        if omega_diff > r_diff
+            %extinction possible
+            ext_mat(i, j) = 1;
+
+        else
+            ext_mat(i, j) = 0;
+
+        end
+
+    end
+end
+
+
+ext_mat_transp = ext_mat';
+
+        figure;
+        imagesc(w12_vals, w21_vals, ext_mat_transp);
+        colorbar;
+        xlabel('w_{12} values');
+        ylabel('w_{21} values');
+        title('Extinction Possibility')
+        set(gca, 'YDir', 'normal'); 
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

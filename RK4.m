@@ -1,4 +1,5 @@
 function [t,y,v,h] = RK4(f1, f2, a, b, n, N1_0, N2_0)
+%function [t,y,v,h,stop_time] = RK4(f1, f2, a, b, n, N1_0, N2_0, prog_pnt)
 % RK4 performs the Range-Kutte 4 Method to estimate y and v from two ODEs of the
 % form dy/dt = f1(t,y,v) and dv/dt = f2(t,y,v) 
 % INPUTS:
@@ -41,6 +42,14 @@ for i = 1:n
     y(i+1) = y(i) + 1/6 * (k1 + 2*k2 + 2*k3 + k4);
     v(i+1) = v(i) + 1/6 * (m1 + 2*m2 + 2*m3 + m4);    
 
+
+    % if y(i+1) + v(i+1) > prog_pnt
+    %     stop_time = t(i+1);
+    %     t = t(1:i+1);
+    %     y = y(1:i+1);
+    %     v = v(1:i+1);
+    %     break;
+    % end
 end
 
 end
