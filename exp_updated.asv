@@ -7,8 +7,8 @@
 %% Establishing Variables/Growth Rates
 r1 = 1; %Cell population 1 intrinsic growth rate
 r2 = 1; %Cell population 2 intrinsic growth rate
-w12 = 0.45; %Phenotypic switching rate from population 1 to 2 - potentially make switching rates higher (simulate parameter space)
-w21 = 1.95; %Phenotypic switching rate from population 2 to 1
+w12 = 0.01; %Phenotypic switching rate from population 1 to 2 - potentially make switching rates higher (simulate parameter space)
+w21 = 1.02; %Phenotypic switching rate from population 2 to 1
 N1_0 = 100; %Initial population for population 1
 N2_0 = 100; %Initial population for population 1
 
@@ -284,7 +284,7 @@ end
 
 %Creating colour map
 param_space_fixed = param_space';
-%%
+
 figure;
 imagesc(w12_vals, w21_vals, param_space_fixed);
 colorbar;
@@ -293,11 +293,13 @@ ylabel('w_{21} values');
 title('Time to progression (days)')
 set(gca, 'YDir', 'normal'); 
 
+% Commentary:
+% boundary between progress
 
 
 
 
-%% Extinction Condition:
+%% Extinction Condition: - haven't really focused on this recently
 
 % w_21 - w_12 > r_2 - r_1
 

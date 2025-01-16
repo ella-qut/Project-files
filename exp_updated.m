@@ -293,11 +293,14 @@ ylabel('w_{21} values');
 title('Time to progression (days)')
 set(gca, 'YDir', 'normal'); 
 
+% Commentary:
+% boundary between progression and non-progression seems to be explained
+% by: w21 = (r2/r_treat)*w12 + r2
 
 
 
 
-%% Extinction Condition:
+%% Extinction Condition: - haven't really focused on this recently
 
 % w_21 - w_12 > r_2 - r_1
 
