@@ -294,7 +294,9 @@ title('Time to progression (days)')
 set(gca, 'YDir', 'normal'); 
 
 % Commentary:
-% boundary between progress
+% boundary between progression and non-progression seems to be explained
+% by: w21 = (r2/r_treat)*w12 + r2
+
 
 
 
