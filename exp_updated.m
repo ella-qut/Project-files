@@ -5,37 +5,41 @@
 % adp_treat_rate.m function file (for adaptive treatment)
 
 %% Establishing Variables/Growth Rates
-r1 = 0.2; %Cell population 1 intrinsic growth rate
-r2 = 0.2; %Cell population 2 intrinsic growth rate
-w12 = 0.1; %Phenotypic switching rate from population 1 to 2 - potentially make switching rates higher (simulate parameter space)
-w21 = 0.1; %Phenotypic switching rate from population 2 to 1
+r1 = 1; %Cell population 1 intrinsic growth rate
+r2 = 1; %Cell population 2 intrinsic growth rate
+w12 = 0.01; %Phenotypic switching rate from population 1 to 2 - potentially make switching rates higher (simulate parameter space)
+w21 = 1.02; %Phenotypic switching rate from population 2 to 1
 N1_0 = 100; %Initial population for population 1
 N2_0 = 100; %Initial population for population 1
 
 %Treatment model time boundaries (days):
 a = 0; 
-b = 600;
+%b = 600;
+b = 800;
 r_treat = -0.5; %Updated growth rate for sensitive population under treatment
 m = 4; %treatment dosage in each step
-d = 0.2; %treatment induced death rate
+d = 0.299; %treatment induced death rate
 %r_treat = r1 - m * d;
 
 n = 1800; %number of time steps
+%n = 10000;
 
 % specific to metronomic model:
-treat_time = 10; % time-step duration of treatment
-no_treat_time = 30; % time-step duration of no treatment
+treat_time = 100; % time-step duration of treatment
+no_treat_time = 300; % time-step duration of no treatment
 
 % specific to adaptive model
 PSA_0 = N1_0 + N2_0; %Initial PSA count
-PSA_threshold = 0.5 * PSA_0; %Threshold for treatment stop/start
+PSA_threshold_low = 0.5 * PSA_0; %Threshold for treatment stop/start
+PSA_threshold_high = 0.8* PSA_0;
 
 % graphing
-y_max = 1000000;
+y_max = 400;
 log_y_max = log10(y_max);
 
 % Establishing Point for Progression
-prog_pnt = 1000000;
+%prog_pnt = 1000000;
+prog_pnt = 300;
 
 %% Establishing ODEs for Cell population changes
 
@@ -57,6 +61,7 @@ if strcmp(treatment_method, 'no_treatment')
     f1 = @(t,y,v) r1*y - w12*y + w21*v;
     f2 = @(t,y,v) r2*v - w21*v + w12*y;
     [t,y,v] = RK4(f1,f2,a,b,n,N1_0,N2_0);
+    %[t,y,v] = euler_stabCheck(f1,f2,a,b,n,N1_0,N2_0);
     figure
     plot(t,y,'r', 'DisplayName', 'Sensitive Population')
     hold on
@@ -74,6 +79,7 @@ elseif strcmp(treatment_method, 'continuous')
     f1 = @(t,y,v) r_treat*y - w12*y + w21*v;
     f2 = @(t,y,v) r2*v - w21*v + w12*y;
     [t,y,v] = RK4(f1,f2,a,b,n,N1_0,N2_0);
+    %[t,y,v] = euler_stabCheck(f1,f2,a,b,n,N1_0,N2_0);
     figure
     hold on
     set(gca, 'Color', [0.8,0.8,0.8]);
@@ -99,7 +105,8 @@ elseif strcmp(treatment_method, 'metronomic')
     %e.g. whether treatment is being applied or not
     f1 = @(t,y,v) treat_rate(t)*y - w12*y + w21*v;
     f2 = @(t,y,v) r2*v - w21*v + w12*y;
-    [t,y,v] = RK4(f1,f2,a,b,n,N1_0,N2_0);
+    %[t,y,v] = RK4(f1,f2,a,b,n,N1_0,N2_0);
+    [t,y,v] = euler_stabCheck(f1,f2,a,b,n,N1_0,N2_0);
 
     met_treatment_status = false(size(t)); % Boolean array for treatment state
 
@@ -146,18 +153,19 @@ elseif strcmp(treatment_method, 'metronomic')
 
 
 elseif strcmp(treatment_method, 'adaptive') %I still need to account for PSA Decay (dPSA/dt = N1 + N2 - 0.5*PSA)
-    treat_rate_adp = @(t,y,v) adp_treat_rate(t, r1, r_treat, y, v, PSA_threshold); %function to determine treatment rate based on time in treatment cycle
+    treat_rate_adp = @(t,y,v) adp_treat_rate(t, r1, r_treat, y, v, PSA_threshold_low, PSA_threshold_high); %function to determine treatment rate based on time in treatment cycle
     %e.g. whether treatment is being applied or not
     f1 = @(t,y,v) treat_rate_adp(t,y,v)*y - w12*y + w21*v;
     f2 = @(t,y,v) r2*v - w21*v + w12*y;
     %f2 = @(t,y,v) treat_rate(t)*v - w21*v + w12*y; %I was just experimenting here!!! change treat_rate(t) back to r2
     %[t,y,v,stop_time] = RK4(f1,f2,a,b,n,N1_0,N2_0,prog_pnt);
-    [t,y,v] = RK4(f1,f2,a,b,n,N1_0,N2_0);
+    %[t,y,v] = RK4(f1,f2,a,b,n,N1_0,N2_0);
+    [t,y,v] = euler_stabCheck(f1,f2,a,b,n,N1_0,N2_0);
     total_count = y + v;
     treatment_status = false(size(t)); % Boolean array for treatment state
 
     for i = 1:length(t)
-        [~, treatment_status(i)] = adp_treat_rate(t(i), r1, r_treat, y(i), v(i), PSA_threshold);
+        [~, treatment_status(i), direction(i)] = adp_treat_rate(t(i), r1, r_treat, y(i), v(i), PSA_threshold_low, PSA_threshold_high);
         %fprintf('At time %.2f, PSA = %.2f, Treatment = %d\n', t(i), y(i) + v(i), treatment_status(i));
 
     end
@@ -233,12 +241,11 @@ end
 % Establishing range for w12 and w21 rates:
 
 w_start = 0;
-w_end = 3;
-w_int = 700;
+w_end = 2;
+w_int = 1000;
 
 w12_vals = linspace(w_start, w_end, w_int);
 w21_vals = linspace(w_start, w_end, w_int);
-
 
 % Initialising matrix for w12 and w21 combinations:
 param_space = zeros(length(w12_vals), length(w21_vals));
@@ -252,10 +259,11 @@ for i = 1:length(w12_vals)
         w21 = w21_vals(j);
 
         %Compute RK4
-        treat_rate_adp = @(t,y,v) adp_treat_rate(t, r1, r_treat, y, v, PSA_threshold); %function to determine treatment rate based on time in treatment cycle
+        treat_rate_adp = @(t,y,v) adp_treat_rate(t, r1, r_treat, y, v, PSA_threshold_low, PSA_threshold_high); %function to determine treatment rate based on time in treatment cycle
         f1 = @(t,y,v) treat_rate_adp(t,y,v)*y - w12*y + w21*v;
         f2 = @(t,y,v) r2*v - w21*v + w12*y;
-        [t,y,v] = RK4(f1,f2,a,b,n,N1_0,N2_0);
+        %[t,y,v] = RK4(f1,f2,a,b,n,N1_0,N2_0);
+        [t,y,v] = euler_stabCheck(f1,f2,a,b,n,N1_0,N2_0);
 
 
         %Creating a vector to compute the cell population at each time step
@@ -266,7 +274,7 @@ for i = 1:length(w12_vals)
         %time_to_prog = find(current_pop > prog_pnt, 1); %finds the first occurence of the population exceeding the progression point
         time_to_prog = find(movmean(current_pop,3)>prog_pnt, 1);
         if isempty(time_to_prog)
-            param_space(i,j) = 700; %assigning a large time index if the population did not exceed the progression point within the time domain
+            param_space(i,j) = 1000; %assigning a large time index if the population did not exceed the progression point within the time domain
         else
             param_space(i,j) = t(time_to_prog); %assigning the time value using the index found.
         end
@@ -284,6 +292,7 @@ xlabel('w_{12} values');
 ylabel('w_{21} values');
 title('Time to progression (days)')
 set(gca, 'YDir', 'normal'); 
+
 
 
 
