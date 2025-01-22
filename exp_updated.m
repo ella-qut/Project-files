@@ -5,18 +5,18 @@
 % adp_treat_rate.m function file (for adaptive treatment)
 
 %% Establishing Variables/Growth Rates
-r1 = 1; %Cell population 1 intrinsic growth rate
-r2 = 1; %Cell population 2 intrinsic growth rate
-w12 = 0.01; %Phenotypic switching rate from population 1 to 2 - potentially make switching rates higher (simulate parameter space)
-w21 = 1.02; %Phenotypic switching rate from population 2 to 1
-N1_0 = 100; %Initial population for population 1
-N2_0 = 100; %Initial population for population 1
+r1 = 0.2; %Cell population 1 intrinsic growth rate
+r2 = 0.2; %Cell population 2 intrinsic growth rate
+w12 = 0.4; %Phenotypic switching rate from population 1 to 2 - potentially make switching rates higher (simulate parameter space)
+w21 = 0.3; %Phenotypic switching rate from population 2 to 1
+N1_0 = 1000; %Initial population for population 1
+N2_0 = 1000; %Initial population for population 1
 
 %Treatment model time boundaries (days):
 a = 0; 
 %b = 600;
 b = 800;
-r_treat = -0.5; %Updated growth rate for sensitive population under treatment
+r_treat = -0.2; %Updated growth rate for sensitive population under treatment
 m = 4; %treatment dosage in each step
 d = 0.299; %treatment induced death rate
 %r_treat = r1 - m * d;
@@ -25,8 +25,8 @@ n = 1800; %number of time steps
 %n = 10000;
 
 % specific to metronomic model:
-treat_time = 100; % time-step duration of treatment
-no_treat_time = 300; % time-step duration of no treatment
+treat_time = 30; % time-step duration of treatment
+no_treat_time = 50; % time-step duration of no treatment
 
 % specific to adaptive model
 PSA_0 = N1_0 + N2_0; %Initial PSA count
@@ -34,12 +34,12 @@ PSA_threshold_low = 0.5 * PSA_0; %Threshold for treatment stop/start
 PSA_threshold_high = 0.8* PSA_0;
 
 % graphing
-y_max = 400;
+y_max = 1000000;
 log_y_max = log10(y_max);
 
 % Establishing Point for Progression
 %prog_pnt = 1000000;
-prog_pnt = 300;
+prog_pnt = 10000;
 
 %% Establishing ODEs for Cell population changes
 
@@ -55,7 +55,7 @@ f2 = @(t,y,v) r2*v - w21*v + w12*y;
 
 %% Applying treatment methods to predict tumour behaviour:
 
-treatment_method = 'adaptive'; % options: 'no_treatment', 'continuous', 'metronomic', 'adaptive'
+treatment_method = 'metronomic'; % options: 'no_treatment', 'continuous', 'metronomic', 'adaptive'
 
 if strcmp(treatment_method, 'no_treatment')
     f1 = @(t,y,v) r1*y - w12*y + w21*v;
@@ -119,11 +119,11 @@ elseif strcmp(treatment_method, 'metronomic')
 
     figure
     hold on
-    plot(t,y,'r', 'DisplayName', 'Sensitive Population')
-    plot(t,v,'b', 'DisplayName', 'Resistant Population')
+    %plot(t,y,'r', 'DisplayName', 'Sensitive Population')
+    %plot(t,v,'b', 'DisplayName', 'Resistant Population')
 
-    % semilogy(t,y,'r', 'DisplayName', 'Sensitive Population')
-    % semilogy(t,v,'b', 'DisplayName', 'Resistant Population')
+     semilogy(t,y,'r', 'DisplayName', 'Sensitive Population')
+     semilogy(t,v,'b', 'DisplayName', 'Resistant Population')
 
     x_limits = xlim;
     y_limits = ylim;
@@ -153,6 +153,7 @@ elseif strcmp(treatment_method, 'metronomic')
 
 
 elseif strcmp(treatment_method, 'adaptive') %I still need to account for PSA Decay (dPSA/dt = N1 + N2 - 0.5*PSA)
+    y_max = 10000;
     treat_rate_adp = @(t,y,v) adp_treat_rate(t, r1, r_treat, y, v, PSA_threshold_low, PSA_threshold_high); %function to determine treatment rate based on time in treatment cycle
     %e.g. whether treatment is being applied or not
     f1 = @(t,y,v) treat_rate_adp(t,y,v)*y - w12*y + w21*v;
@@ -242,7 +243,7 @@ end
 
 w_start = 0;
 w_end = 2;
-w_int = 1000;
+w_int = 100;
 
 w12_vals = linspace(w_start, w_end, w_int);
 w21_vals = linspace(w_start, w_end, w_int);
@@ -261,6 +262,7 @@ for i = 1:length(w12_vals)
         %Compute RK4
         treat_rate_adp = @(t,y,v) adp_treat_rate(t, r1, r_treat, y, v, PSA_threshold_low, PSA_threshold_high); %function to determine treatment rate based on time in treatment cycle
         f1 = @(t,y,v) treat_rate_adp(t,y,v)*y - w12*y + w21*v;
+        %f1 = @(t,y,v) r_treat*y - w12*y + w21*v;
         f2 = @(t,y,v) r2*v - w21*v + w12*y;
         %[t,y,v] = RK4(f1,f2,a,b,n,N1_0,N2_0);
         [t,y,v] = euler_stabCheck(f1,f2,a,b,n,N1_0,N2_0);
@@ -295,7 +297,7 @@ set(gca, 'YDir', 'normal');
 
 % Commentary:
 % boundary between progression and non-progression seems to be explained
-% by: w21 = (r2/r_treat)*w12 + r2
+% by: w21 = (r2/|r_treat|)*w12 + r2
 
 
 

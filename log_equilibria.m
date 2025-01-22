@@ -6,6 +6,10 @@
 %equilibria
 r1_eq = 1;
 r2_eq = 1;
+K1_eq = 1000;
+K2_eq = 1000;
+l1_eq = 1/K1_eq;
+l2_eq = 1/K2_eq;
 
 
 %initialising omega values
@@ -32,8 +36,8 @@ for i = 1:length(w12_vals)
         %dN1/dt = 0)
 
         vec_system = @(N) [
-            r1_eq*N(1) - w12*N(1) + w21*N(2);
-            r2_eq*N(2) - w21*N(2) + w12*N(1)];
+            r1_eq*N(1) - w12*N(1) + w21*N(2) - l1_eq*(N(1).^2 + N(1).*N(2));
+            r2_eq*N(2) - w21*N(2) + w12*N(1) - l2_eq*(N(2).^2 + N(1).*N(2))];
 
         [Eq_vals, ~, exitflag] = fsolve(vec_system, [100, 100]); 
         %using fsolve to find roots of system - initial N1 and N2 guess for
@@ -46,8 +50,8 @@ for i = 1:length(w12_vals)
             %Stability analysis of equilibria if equilibria is found:
             
             %Creating Jacobean matrix
-            J = [r1_eq - w12, w21;
-                w12, r2_eq - w21]; 
+            J = [r1_eq - w12 - 2*l1_eq*Eq_vals(1) - l1_eq*Eq_vals(2), w21 - l1_eq*Eq_vals(1);
+                w12 - l2_eq*Eq_vals(2), r2_eq - w21 - l2_eq*Eq_vals(1) - 2*l2_eq*Eq_vals(2)]; 
             %Determining eigen-values of Jacobean matrix
             eigenvals = eig(J);
 

@@ -1,27 +1,29 @@
 %% Establishing Variables/growth rates
 
-r1 = 1; %Cell population 1 intrinsic growth rate
-r2 = 1; %Cell population 2 intrinsic growth rate
-w12 = 0.02; %Phenotypic switching rate from population 1 to 2 - potentially make switching rates higher (simulate parameter space)
-w21 = 0.03; %Phenotypic switching rate from population 2 to 1
-l1 = 0.005; %Intensity of competition from population 2 onto population 1
-l2 = 0.005; %Intensity of competition from population 1 onto population 2
-N1_0 = 10; %Initial population for population 1
-N2_0 = 10; %Initial population for population 1
+r1 = 0.2; %Cell population 1 intrinsic growth rate
+r2 = 0.2; %Cell population 2 intrinsic growth rate
+w12 = 0.3; %Phenotypic switching rate from population 1 to 2 - potentially make switching rates higher (simulate parameter space)
+w21 = 0.6; %Phenotypic switching rate from population 2 to 1
+K1 = 100000; %Carrying capacity for population 1 without treatment
+K1_treat = 10000; %Carrying capacity for population 1 during treatment
+K2 = 100000; %Carrying capacity for population 2 without treatment
+l1 = 1/K1;
+l1_treat = 1/K1_treat;
+l2 = 1/K2;
+N1_0 = 1000; %Initial population for population 1
+N2_0 = 1000; %Initial population for population 1
 
-
-y_max = 400;
+y_max = 20000;
 
 %Treatment model time boundaries (days)
 a = 0;
-b = 400;
-r_treat = -0.2;
+b = 600;
 
 n = 1800; %number of time steps
 
 % specific to metronomic model:
-treat_time = 100; % time-step duration of treatment
-no_treat_time = 200; % time-step duration of no treatment
+treat_time = 50; % time-step duration of treatment
+no_treat_time = 80; % time-step duration of no treatment
 
 % specific to adaptive model
 PSA_0 = N1_0 + N2_0; %Initial PSA count
@@ -32,7 +34,7 @@ prog_pnt = 300;
 
 %% Applying treatment methods:
 
-treatment_method = 'adaptive'; % options: 'no_treatment', 'continuous', 'metronomic', 'adaptive'
+treatment_method = 'adaptive,'; % options: 'no_treatment', 'continuous', 'metronomic', 'adaptive'
 
 if strcmp(treatment_method, 'no_treatment')
     f1 = @(t,y,v) r1*y - w12*y + w21*v - l1*(y.^2 + y.*v);
@@ -45,7 +47,7 @@ if strcmp(treatment_method, 'no_treatment')
     plot(t,v,'b', 'DisplayName', 'Resistant Population')
     xlabel('Time, (days)')
     ylabel('Cell Count')
-    title('No Treatment Exponential Model')
+    title('No Treatment Logistic Model')
     ylim([-10,y_max])
 
 
@@ -53,7 +55,7 @@ if strcmp(treatment_method, 'no_treatment')
 
 
 elseif strcmp(treatment_method, 'continuous')
-    f1 = @(t,y,v) r1*y - w12*y + w21*v - l1*(y.^2 + y.*v);
+    f1 = @(t,y,v) r1*y - w12*y + w21*v - l1_treat*(y.^2 + y.*v);
     f2 = @(t,y,v) r2*v - w21*v + w12*y - l2*(v.^2 + y.*v);
     [t,y,v] = RK4(f1,f2,a,b,n,N1_0,N2_0);
     %[t,y,v] = euler_stabCheck(f1,f2,a,b,n,N1_0,N2_0);
@@ -68,7 +70,7 @@ elseif strcmp(treatment_method, 'continuous')
 
     xlabel('Time, (days)')
     ylabel('Cell Count')
-    title('Continuous Treatment Exponential Model')
+    title('Continuous Treatment Logistic Model')
     legend show;
     ylim([-10,y_max])
 
@@ -78,9 +80,9 @@ elseif strcmp(treatment_method, 'continuous')
 
 
 elseif strcmp(treatment_method, 'metronomic')
-    treat_rate = @(t) treatment_rate(t, r1, r_treat, treat_time, no_treat_time); %function to determine treatment rate based on time in treatment cycle
+    met_treat_rate = @(t) met_tr_log(t, l1, l1_treat, treat_time, no_treat_time); %function to determine treatment rate based on time in treatment cycle
     %e.g. whether treatment is being applied or not
-    f1 = @(t,y,v) r1*y - w12*y + w21*v - l1*(y.^2 + y.*v);
+    f1 = @(t,y,v) r1*y - w12*y + w21*v - met_treat_rate(t)*(y.^2 + y.*v);
     f2 = @(t,y,v) r2*v - w21*v + w12*y - l2*(v.^2 + y.*v);
     %[t,y,v] = RK4(f1,f2,a,b,n,N1_0,N2_0);
     [t,y,v] = euler_stabCheck(f1,f2,a,b,n,N1_0,N2_0);
@@ -88,7 +90,7 @@ elseif strcmp(treatment_method, 'metronomic')
     met_treatment_status = false(size(t)); % Boolean array for treatment state
 
     for i = 1:length(t)
-        [~, met_treatment_status(i)] = treatment_rate(t(i), r1, r_treat, treat_time, no_treat_time);
+        [~, met_treatment_status(i)] = met_tr_log(t(i), l1, l1_treat, treat_time, no_treat_time);
         %fprintf('At time %.2f, PSA = %.2f, Treatment = %d\n', t(i), y(i) + v(i), treatment_status(i));
 
     end
@@ -122,7 +124,7 @@ elseif strcmp(treatment_method, 'metronomic')
 
     xlabel('Time, (days)')
     ylabel('Cell Count')
-    title('Metronomic Treatment Exponential Model')
+    title('Metronomic Treatment Logistic Model')
     legend show;
     ylim([-10,y_max])
 
@@ -130,9 +132,9 @@ elseif strcmp(treatment_method, 'metronomic')
 
 
 elseif strcmp(treatment_method, 'adaptive') %I still need to account for PSA Decay (dPSA/dt = N1 + N2 - 0.5*PSA)
-    treat_rate_adp = @(t,y,v) adp_treat_rate(t, r1, r_treat, y, v, PSA_threshold_low, PSA_threshold_high); %function to determine treatment rate based on time in treatment cycle
+    log_treat_rate_adp = @(t,y,v) adp_tr_log(t, l1, l1_treat, y, v, PSA_threshold_low, PSA_threshold_high); %function to determine treatment rate based on time in treatment cycle
     %e.g. whether treatment is being applied or not
-    f1 = @(t,y,v) r1*y - w12*y + w21*v - l1*(y.^2 + y.*v);
+    f1 = @(t,y,v) r1*y - w12*y + w21*v - log_treat_rate_adp(t,y,v)*(y.^2 + y.*v);
     f2 = @(t,y,v) r2*v - w21*v + w12*y - l2*(v.^2 + y.*v);
     %f2 = @(t,y,v) treat_rate(t)*v - w21*v + w12*y; %I was just experimenting here!!! change treat_rate(t) back to r2
     %[t,y,v,stop_time] = RK4(f1,f2,a,b,n,N1_0,N2_0,prog_pnt);
@@ -142,7 +144,7 @@ elseif strcmp(treatment_method, 'adaptive') %I still need to account for PSA Dec
     treatment_status = false(size(t)); % Boolean array for treatment state
 
     for i = 1:length(t)
-        [~, treatment_status(i), direction(i)] = adp_treat_rate(t(i), r1, r_treat, y(i), v(i), PSA_threshold_low, PSA_threshold_high);
+        [~, treatment_status(i), direction(i)] = adp_tr_log(t(i), l1, l1_treat, y(i), v(i), PSA_threshold_low, PSA_threshold_high);
         %fprintf('At time %.2f, PSA = %.2f, Treatment = %d\n', t(i), y(i) + v(i), treatment_status(i));
 
     end
@@ -203,7 +205,7 @@ elseif strcmp(treatment_method, 'adaptive') %I still need to account for PSA Dec
 
     xlabel('Time, (days)')
     ylabel('Cell Count')
-    title('Adaptive Treatment Exponential Model');
+    title('Adaptive Treatment Logistic Model');
     legend show;
     ylim([-10,y_max])
     
@@ -211,3 +213,67 @@ elseif strcmp(treatment_method, 'adaptive') %I still need to account for PSA Dec
 else
     error('Invalid treatment method specified');
 end 
+
+
+
+
+%% Parameter Space Model:
+
+% Establishing range for w12 and w21 rates:
+
+w_start = 0;
+w_end = 2;
+w_int = 100;
+
+w12_vals = linspace(w_start, w_end, w_int);
+w21_vals = linspace(w_start, w_end, w_int);
+
+% Initialising matrix for w12 and w21 combinations:
+param_space = zeros(length(w12_vals), length(w21_vals));
+
+
+% Loop to test adaptive model on each combination of w12 and w21:
+for i = 1:length(w12_vals)
+    for j = 1:length(w21_vals)
+        %Assign w12 and w21
+        w12 = w12_vals(i);
+        w21 = w21_vals(j);
+
+        %Compute RK4
+        log_treat_rate_adp = @(t,y,v) adp_tr_log(t, l1, l1_treat, y, v, PSA_threshold_low, PSA_threshold_high); %function to determine treatment rate based on time in treatment cycle
+        f1 = @(t,y,v) r1*y - w12*y + w21*v - log_treat_rate_adp(t,y,v)*(y.^2 + y.*v);
+        f2 = @(t,y,v) r2*v - w21*v + w12*y - l2*(v.^2 + y.*v);
+        %[t,y,v] = RK4(f1,f2,a,b,n,N1_0,N2_0);
+        [t,y,v] = euler_stabCheck(f1,f2,a,b,n,N1_0,N2_0);
+
+
+        %Creating a vector to compute the cell population at each time step
+        %for the particular w12 w21 combination:
+        current_pop = y+v;
+
+        %Finding time taken to reach the progression point:
+        %time_to_prog = find(current_pop > prog_pnt, 1); %finds the first occurence of the population exceeding the progression point
+        time_to_prog = find(movmean(current_pop,3)>prog_pnt, 1);
+        if isempty(time_to_prog)
+            param_space(i,j) = 1000; %assigning a large time index if the population did not exceed the progression point within the time domain
+        else
+            param_space(i,j) = t(time_to_prog); %assigning the time value using the index found.
+        end
+    end
+
+end
+
+%Creating colour map
+param_space_fixed = param_space';
+
+figure;
+imagesc(w12_vals, w21_vals, param_space_fixed);
+colorbar;
+xlabel('w_{12} values');
+ylabel('w_{21} values');
+title('Time to progression (days)')
+set(gca, 'YDir', 'normal'); 
+
+% Commentary:
+% boundary between progression and non-progression seems to be explained
+% by: w21 = (r2/|r_treat|)*w12 + r2
